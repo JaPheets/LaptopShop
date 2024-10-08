@@ -9,29 +9,31 @@ import org.springframework.web.bind.annotation.ModelAttribute;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
-import org.springframework.web.bind.annotation.RequestMethod;
+import org.springframework.web.bind.annotation.RequestParam;
+import org.springframework.web.multipart.MultipartFile;
 import java.util.List;
 
 import com.example.laptopshop.domian.User;
 import com.example.laptopshop.domian.dto.RegisterDTO;
-import com.example.laptopshop.repository.UserRepository;
+import com.example.laptopshop.service.UploadService;
 import com.example.laptopshop.service.UserService;
 
 @Controller
 public class UserController {
     private final UserService userService;
     private final PasswordEncoder passwordEncoder;
+    private final UploadService uploadService;
 
-    public UserController(UserService userService, PasswordEncoder passwordEncoder) {
+    public UserController(UserService userService, PasswordEncoder passwordEncoder, UploadService uploadService) {
         this.userService = userService;
         this.passwordEncoder = passwordEncoder;
-
+        this.uploadService = uploadService;
     }
 
-    @RequestMapping("/home")
+    @RequestMapping("/")
     public String getHomePage(Model model) {
         List<User> arrUsers = this.userService.getAllUsersByEmail("admin@gmail.com");
-        System.out.println(arrUsers);
+        // System.out.println(arrUsers);
         model.addAttribute("HomePage", "test");
         model.addAttribute("Page", "From controller with model");
         return "home";
@@ -59,12 +61,13 @@ public class UserController {
         return "admin/user/create";
     }
 
-    @RequestMapping(value = "/admin/user/create", method = RequestMethod.POST)
-    public String createUserPage(Model model, @ModelAttribute("newUser") User person) {
-
+    @PostMapping(value = "/admin/user/create")
+    public String createUserPage(Model model, @ModelAttribute("newUser") User person,
+            @RequestParam("upFile") MultipartFile file) {
+        String avatar = this.uploadService.handleSaveUploadFile(file, "avatar");
         String hashPassword = this.passwordEncoder.encode(person.getPassword());
         person.setPassword(hashPassword);
-        // person.setRole(this.userService.getRoleByName(person.getRole().getName()));
+        person.setRole(this.userService.getRoleByName(person.getRole().getName()));
         this.userService.handleSaveUser(person);
         return "redirect:/admin/user";
     }
@@ -114,19 +117,26 @@ public class UserController {
         User user = this.userService.registerDTOtoUser(registerDTO);
         String hashPassword = this.passwordEncoder.encode(user.getPassword());
         user.setPassword(hashPassword);
+        user.setRole(this.userService.getRoleByName("USER"));
 
         this.userService.handleSaveUser(user);
         return "redirect:/login";
     }
 
     @GetMapping("/login")
-    public String getLoginPage() {
-        System.out.println("----------/login");
+    public String getLoginPage(Model model) {
+
         return "client/auth/login";
     }
 
     @PostMapping("/login")
     public String getLoginPage(Model model, String abc) {
-        return "home";
+        return "redirect:/home";
+    }
+
+    @GetMapping("/access_deny")
+    public String getDenyPage(Model model) {
+
+        return "client/auth/deny";
     }
 }

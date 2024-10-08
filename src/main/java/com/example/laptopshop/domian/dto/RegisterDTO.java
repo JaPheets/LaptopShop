@@ -5,6 +5,7 @@ public class RegisterDTO {
     private String lastName;
     private String email;
     private String password;
+    private String confirmPassword;
 
     public String getFirstName() {
         return firstName;
@@ -45,7 +46,5 @@ public class RegisterDTO {
     public void setConfirmPassword(String confirmPassword) {
         this.confirmPassword = confirmPassword;
     }
-
-    private String confirmPassword;
 
 }

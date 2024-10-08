@@ -1,18 +1,27 @@
 package com.example.laptopshop.config;
 
 import org.springframework.context.annotation.Bean;
-import org.springframework.security.config.Customizer;
 import org.springframework.context.annotation.Configuration;
-import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
+import org.springframework.security.authentication.AuthenticationManager;
+import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
+import org.springframework.security.config.annotation.authentication.builders.AuthenticationManagerBuilder;
 import org.springframework.security.config.annotation.web.builders.HttpSecurity;
-import org.springframework.security.config.annotation.web.configurers.AbstractHttpConfigurer;
+import org.springframework.security.config.http.SessionCreationPolicy;
+import org.springframework.security.config.annotation.method.configuration.EnableMethodSecurity;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.security.web.SecurityFilterChain;
-import org.springframework.security.config.annotation.web.configuration.EnableWebSecurity;
+import org.springframework.session.security.web.authentication.SpringSessionRememberMeServices;
+
+import com.example.laptopshop.service.CustomUserDetailsService;
+import com.example.laptopshop.service.UserService;
+
+import jakarta.servlet.DispatcherType;
+
+import org.springframework.security.core.userdetails.UserDetailsService;
 
 @Configuration
-@EnableWebSecurity
+@EnableMethodSecurity(securedEnabled = true)
 public class SecurityConfiguration {
         @Bean
         public PasswordEncoder passwordEncoder() {
@@ -20,21 +29,57 @@ public class SecurityConfiguration {
         }
 
         @Bean
-        public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
-                return http.csrf(AbstractHttpConfigurer::disable)
+        public UserDetailsService userDetailsService(UserService userService) {
+                return new CustomUserDetailsService(userService);
+        }
+
+        @Bean
+        public DaoAuthenticationProvider authProvider(
+                        PasswordEncoder passwordEncoder,
+                        UserDetailsService userDetailsService) {
+                DaoAuthenticationProvider authProvider = new DaoAuthenticationProvider();
+                authProvider.setUserDetailsService(userDetailsService);
+                authProvider.setPasswordEncoder(passwordEncoder);
+                authProvider.setHideUserNotFoundExceptions(false);
+                return authProvider;
+        }
+
+        @Bean
+        public SpringSessionRememberMeServices rememberMeServices() {
+                SpringSessionRememberMeServices rememberMeServices = new SpringSessionRememberMeServices();
+                // optionally customize
+                rememberMeServices.setAlwaysRemember(true);
+                return rememberMeServices;
+        }
+
+        @Bean
+        SecurityFilterChain filterChain(HttpSecurity http) throws Exception {
+                http
                                 .authorizeHttpRequests(authorize -> authorize
-                                                .requestMatchers("/login", "/images/**", "/css/**", "/js/**",
-                                                                "/WEB-INF/views/**",
-                                                                "/views/client/auth/**")
-                                                .permitAll() // với endpoint /hello
-                                                .anyRequest().authenticated() // với endpoint /customer/** sẽ yêu cầu
-                                )
-                                .formLogin(form -> form
+                                                .dispatcherTypeMatchers(DispatcherType.FORWARD,
+                                                                DispatcherType.INCLUDE)
+                                                .permitAll()
+                                                .requestMatchers("/", "/register", "/login", "/client/**", "/css/**",
+                                                                "/js/**",
+                                                                "/images/**")
+                                                .permitAll()
+                                                .requestMatchers("/admin/**").hasRole("ADMIN")
+                                                .anyRequest().authenticated())
+                                .sessionManagement((sessionManagement) -> sessionManagement
+                                                .sessionCreationPolicy(SessionCreationPolicy.ALWAYS)
+                                                .invalidSessionUrl("/logout?expired")
+                                                .maximumSessions(1)
+                                                .maxSessionsPreventsLogin(false))
+                                // .logout(logout ->
+                                // logout.deleteCookies("JSESSIONID").invalidateHttpSession(true))
+
+                                .rememberMe(r -> r.rememberMeServices(rememberMeServices()))
+                                .formLogin(formLogin -> formLogin
                                                 .loginPage("/login")
-                                                .loginProcessingUrl("/login")
+                                                .failureUrl("/login?error")
                                                 .permitAll())
-                                // .httpBasic(Customizer.withDefaults())
-                                .build();
+                                .exceptionHandling(ex -> ex.accessDeniedPage("/access_deny"));
+                return http.build();
         }
 
 }
